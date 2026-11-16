@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2b2a28">
+<title>Тригор Сантех — каталог</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="logo">TRI<span>GOR</span></div>
+      <div class="brand-sub">Сантех · прайс от <b id="priceDate">—</b></div>
+    </div>
+    <label class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Поиск: артикул, лейка, биде, 3 в 1, чёрный…" autocomplete="off" enterkeyhint="search">
+      <button id="qClear" class="x" type="button" aria-label="Очистить" hidden>×</button>
+    </label>
+    <button id="cartTop" class="cart-top" type="button" aria-label="Открыть корзину">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.2a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="20" r="1.2"/><circle cx="17" cy="20" r="1.2"/></svg>
+      <span class="ct-sum" id="cartTopSum">$0,00</span>
+      <span class="badge" id="cartTopCount" hidden>0</span>
+    </button>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="Разделы каталога"></nav>
+</header>
+
+<main>
+  <!-- КАТАЛОГ -->
+  <section id="viewCatalog">
+    <div class="toolbar">
+      <button id="filtersBtn" class="btn ghost" type="button" aria-expanded="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        Фильтры <span class="badge sm" id="filtersCount" hidden>0</span>
+      </button>
+      <div class="sort">
+        <label for="sort">Сортировка</label>
+        <select id="sort">
+          <option value="pdf">Как в прайсе</option>
+          <option value="priceAsc">Сначала дешевле</option>
+          <option value="priceDesc">Сначала дороже</option>
+          <option value="art">По артикулу</option>
+          <option value="title">По названию</option>
+        </select>
+      </div>
+      <div class="viewmode" role="group" aria-label="Вид">
+        <button id="vGrid" type="button" class="on" aria-label="Плитка"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+        <button id="vList" type="button" aria-label="Список"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      </div>
+    </div>
+
+    <div id="filters" class="filters">
+      <div class="f-group" id="fColor"><h4>Цвет / покрытие</h4><div class="chips"></div></div>
+      <div class="f-group" id="fMat"><h4>Материал</h4><div class="chips"></div></div>
+      <div class="f-group" id="fKit"><h4>Тип набора</h4><div class="chips"></div></div>
+      <div class="f-group" id="fPrice">
+        <h4>Цена, $ за штуку</h4>
+        <div class="price-row">
+          <input id="pMin" type="number" inputmode="decimal" min="0" step="0.5" placeholder="от">
+          <span>—</span>
+          <input id="pMax" type="number" inputmode="decimal" min="0" step="0.5" placeholder="до">
+        </div>
+        <div class="chips presets" id="pPresets"></div>
+      </div>
+      <div class="f-group" id="fExtra">
+        <h4>Дополнительно</h4>
+        <div class="chips">
+          <button type="button" class="chip" data-extra="link">Есть «Фото+»</button>
+          <button type="button" class="chip" data-extra="photo">Только с фото</button>
+        </div>
+      </div>
+      <button id="resetFilters" class="btn link" type="button">Сбросить всё</button>
+    </div>
+
+    <div class="resultbar"><span id="resCount"></span></div>
+    <div id="grid" class="grid"></div>
+    <div id="empty" class="empty" hidden>
+      <div class="empty-ico">🔎</div>
+      <p>Ничего не найдено</p>
+      <button class="btn" id="emptyReset" type="button">Сбросить фильтры</button>
+    </div>
+  </section>
+
+  <!-- КОРЗИНА -->
+  <section id="viewCart" hidden>
+    <div class="cart-head">
+      <h2>Корзина</h2>
+      <div class="cart-actions">
+        <button class="btn ghost" id="cCopy" type="button">Скопировать список</button>
+        <button class="btn ghost" id="cCsv" type="button">Скачать CSV</button>
+        <button class="btn ghost" id="cPrint" type="button">Печать</button>
+        <button class="btn link danger" id="cClear" type="button">Очистить</button>
+      </div>
+    </div>
+    <div id="cartEmpty" class="empty" hidden>
+      <div class="empty-ico">🛒</div>
+      <p>В корзине пока пусто</p>
+      <button class="btn" id="toCatalog" type="button">Перейти в каталог</button>
+    </div>
+    <div id="cartBody" class="cart-body">
+      <div id="cartList" class="cart-list"></div>
+      <aside class="summary">
+        <h3>Итого</h3>
+        <dl>
+          <div><dt>Позиций</dt><dd id="sPos">0</dd></div>
+          <div><dt>Штук</dt><dd id="sPcs">0</dd></div>
+          <div><dt>Упаковок (с округлением вверх)</dt><dd id="sPacks">0</dd></div>
+        </dl>
+        <div class="total"><span>Сумма</span><b id="sTotal">$0,00</b></div>
+        <div class="kzt" id="kztRow" hidden><span>В тенге</span><b id="sKzt">0 ₸</b></div>
+        <div class="tools">
+          <label>Курс, ₸ за $ <input id="rate" type="number" inputmode="decimal" min="0" step="0.1" placeholder="например 520"></label>
+          <label>Бюджет, $ <input id="budget" type="number" inputmode="decimal" min="0" step="1" placeholder="сколько готов потратить"></label>
+        </div>
+        <div class="budget" id="budgetBox" hidden>
+          <div class="bar"><i id="budgetBar"></i></div>
+          <div class="budget-t" id="budgetText"></div>
+        </div>
+        <button class="btn big" id="cShare" type="button">Отправить список</button>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<!-- Нижняя панель корзины на телефоне -->
+<button id="cartBar" class="cart-bar" type="button" hidden>
+  <span><b id="cbCount">0</b> шт · <span id="cbPos">0</span> поз.</span>
+  <span class="cb-sum" id="cbSum">$0,00</span>
+  <span class="cb-go">Корзина →</span>
+</button>
+
+<!-- Карточка товара -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-bg" data-close></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <button class="modal-x" data-close aria-label="Закрыть">×</button>
+    <div class="m-img" id="mImg"></div>
+    <div class="m-info">
+      <div class="m-art" id="mArt"></div>
+      <h3 id="mTitle"></h3>
+      <div class="m-chips" id="mChips"></div>
+      <ul class="m-lines" id="mLines"></ul>
+      <div class="m-price" id="mPrice"></div>
+      <div class="m-buy" id="mBuy"></div>
+      <a class="btn ghost" id="mLink" target="_blank" rel="noopener" hidden>Больше фото и видео ↗</a>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
