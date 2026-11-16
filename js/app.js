@@ -5,7 +5,10 @@ var $ = function (s, r) { return (r || document).querySelector(s); };
 var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
 var nf = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-var money = function (n) { return '$' + nf.format(n); };
+var money = function (n) { return '$' + nf.format(n); };               // доллары — как в прайсе
+var DEFAULT_RATE = 450;                                                  // курс по умолчанию, ₸ за $ (меняется в приложении)
+var rate = function () { var r = parseFloat(String(settings.rate).replace(',', '.')); return r > 0 ? r : DEFAULT_RATE; };
+var kzt = function (usd) { return new Intl.NumberFormat('ru-RU').format(Math.round(usd * rate())).replace(/\u00a0/g, ' ') + ' ₸'; };  // тенге — основная валюта
 var int = function (n) { return new Intl.NumberFormat('ru-RU').format(n); };
 
 /* ---------- безопасное хранилище ---------- */
@@ -23,7 +26,7 @@ var COLOR_HEX = { 'Хром': 'linear-gradient(135deg,#f3f5f7,#aeb6bf)', 'Чёр
   'Бронза': 'linear-gradient(135deg,#a77649,#6e4528)', 'Другой': 'conic-gradient(#d9b38c,#9db8a0,#9aa7c8,#d9b38c)' };
 var COLOR_ORDER = ['Хром', 'Чёрный', 'Золото', 'Графит', 'Серый', 'Белый', 'Сатин', 'Бронза', 'Другой'];
 var MAT_ORDER = ['Латунь', 'Цинк', 'Нержавейка', 'Пластик', 'Силикон'];
-var PRESETS = [{ l: 'до $15', a: 0, b: 15 }, { l: '$15–30', a: 15, b: 30 }, { l: '$30–60', a: 30, b: 60 }, { l: 'от $60', a: 60, b: null }];
+var PRESETS = [{ l: 'до 5 000 ₸', a: 0, b: 5000 }, { l: '5–10 тыс', a: 5000, b: 10000 }, { l: '10–20 тыс', a: 10000, b: 20000 }, { l: 'от 20 тыс', a: 20000, b: null }];  // в тенге
 var SYN = { 'битые': 'биде', 'бидэ': 'биде', 'бидет': 'биде', 'биди': 'биде', 'душ': 'душ', 'лейки': 'лейк' };
 var ICON_IMG = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></svg>';
 var NOIMG = '<div class="noimg">' + ICON_IMG + '<span>фото нет в прайсе</span></div>';
@@ -34,7 +37,8 @@ var S = {
   sort: store.get('sort', 'pdf'), view: store.get('view', 'grid')
 };
 var cart = store.get('cart', {});   // key -> qty
-var settings = store.get('settings', { rate: '', budget: '' });
+var settings = store.get('settings', { rate: String(DEFAULT_RATE), budget: '' });
+if (!(parseFloat(settings.rate) > 0)) settings.rate = String(DEFAULT_RATE);
 (function cleanCart() {
   var lost = 0;
   Object.keys(cart).forEach(function (k) { if (!byKey[k] || !(cart[k] > 0)) { delete cart[k]; lost++; } });
@@ -83,8 +87,8 @@ function passes(i, skip, toks, full) {
   if (skip !== 'mat' && has(S.mat) && !S.mat[i.mat]) return false;
   if (skip !== 'kit' && has(S.kit) && !S.kit[i.kit]) return false;
   if (skip !== 'price') {
-    if (S.pmin != null && (i.price == null || i.price < S.pmin)) return false;
-    if (S.pmax != null && (i.price == null || i.price > S.pmax)) return false;
+    if (S.pmin != null && (i.price == null || i.price * rate() < S.pmin)) return false;
+    if (S.pmax != null && (i.price == null || i.price * rate() > S.pmax)) return false;
   }
   if (S.extra.link && !i.link) return false;
   if (S.extra.photo && !i.img) return false;
@@ -118,7 +122,7 @@ function renderTabs() {
   META.cats.forEach(function (c) {
     h += '<button class="tab' + (S.tab === c ? ' on' : '') + '" data-tab="' + esc(c) + '">' + esc(c) + ' <span class="n">' + counts[c] + '</span></button>';
   });
-  h += '<button class="tab cart' + (S.tab === 'cart' ? ' on' : '') + '" data-tab="cart">🛒 Корзина <span class="n">' + (t.pos ? t.pcs + ' шт · ' + money(t.sum) : 'пусто') + '</span></button>';
+  h += '<button class="tab cart' + (S.tab === 'cart' ? ' on' : '') + '" data-tab="cart">🛒 Корзина <span class="n">' + (t.pos ? t.pcs + ' шт · ' + kzt(t.sum) : 'пусто') + '</span></button>';
   var el = $('#tabs'); var keep = el.scrollLeft; el.innerHTML = h; el.scrollLeft = keep;
   var on = $('.tab.on', el);
   if (on && !el._scrolled) { el._scrolled = true; on.scrollIntoView({ inline: 'center', block: 'nearest' }); }
@@ -158,8 +162,8 @@ function renderFilters() {
   // цена
   var prices = ITEMS.filter(inTab).map(function (i) { return i.price; }).filter(function (p) { return p != null; });
   var lo = Math.min.apply(null, prices), hi = Math.max.apply(null, prices);
-  $('#pMin').placeholder = 'от ' + (isFinite(lo) ? lo : 0);
-  $('#pMax').placeholder = 'до ' + (isFinite(hi) ? hi : 0);
+  $('#pMin').placeholder = 'от ' + (isFinite(lo) ? int(Math.floor(lo * rate())) : 0);
+  $('#pMax').placeholder = 'до ' + (isFinite(hi) ? int(Math.ceil(hi * rate())) : 0);
   $('#pPresets').innerHTML = PRESETS.map(function (p, ix) {
     var on = S.pmin === p.a && S.pmax === p.b || (p.a === 0 && S.pmin == null && S.pmax === p.b && p.b != null && false);
     return '<button type="button" class="chip' + (on ? ' on' : '') + '" data-preset="' + ix + '">' + p.l + '</button>';
@@ -185,7 +189,7 @@ function buyHTML(i, big) {
     h = '<div class="buy"><div class="stepper"><button type="button" data-act="dec" data-id="' + i.id + '" aria-label="Меньше">−</button>' +
       '<input type="number" inputmode="numeric" min="0" value="' + q + '" data-act="set" data-id="' + i.id + '" aria-label="Количество">' +
       '<button type="button" data-act="inc" data-id="' + i.id + '" aria-label="Больше">+</button></div>' +
-      '<button type="button" class="add in" data-act="tocart">✓ ' + money(i.price * q) + '</button></div>';
+      '<button type="button" class="add in" data-act="tocart">✓ ' + kzt(i.price * q) + '</button></div>';
   } else {
     h = '<div class="buy"><div class="stepper"><button type="button" data-act="pdec" data-id="' + i.id + '" aria-label="Меньше">−</button>' +
       '<input type="number" inputmode="numeric" min="1" value="1" data-pend="' + i.id + '" aria-label="Количество">' +
@@ -200,7 +204,7 @@ function imgHTML(i) {
 }
 function cardHTML(i) {
   var inc = cart[i.key] ? ' incart' : '';
-  var priceH = i.price == null ? '<span class="ask">цена по запросу</span>' : '<b>' + money(i.price) + '</b><small>за шт · в уп. ' + i.pack + '</small>';
+  var priceH = i.price == null ? '<span class="ask">цена по запросу</span>' : '<b>' + kzt(i.price) + '</b><small>(' + money(i.price) + ') · за шт · в уп. ' + i.pack + '</small>';
   return '<article class="card' + inc + '" data-id="' + i.id + '">' +
     '<div class="c-img" data-act="open" data-id="' + i.id + '">' + imgHTML(i) + '<span class="tag">' + esc(i.art) + '</span>' + (i.kit ? '<span class="tag kit">' + esc(i.kit) + '</span>' : '') + '</div>' +
     '<div class="c-body"><div class="c-main">' +
@@ -257,10 +261,10 @@ function afterCartChange(id) {
 }
 function renderCartBadges() {
   var t = cartTotals();
-  $('#cartTopSum').textContent = money(t.sum);
+  $('#cartTopSum').textContent = kzt(t.sum);
   var b = $('#cartTopCount'); b.hidden = !t.pos; b.textContent = t.pcs;
   var bar = $('#cartBar'); bar.hidden = !t.pos || S.tab === 'cart';
-  $('#cbCount').textContent = t.pcs; $('#cbPos').textContent = t.pos; $('#cbSum').textContent = money(t.sum);
+  $('#cbCount').textContent = t.pcs; $('#cbPos').textContent = t.pos; $('#cbSum').textContent = kzt(t.sum);
 }
 function renderCart() {
   var keys = Object.keys(cart).filter(function (k) { return byKey[k]; });
@@ -273,8 +277,8 @@ function renderCart() {
       '<div class="ci-img" data-act="open" data-id="' + i.id + '">' + (i.img ? '<img src="' + esc(i.img) + '" alt="">' : NOIMG) + '</div>' +
       '<div class="ci-main"><div class="c-art">' + esc(i.art) + (i.color ? ' · ' + esc(i.color) : '') + '</div>' +
       '<div class="t">' + esc(i.title) + '</div>' +
-      '<div class="u">' + money(i.price) + ' × ' + q + ' шт' + (i.pack > 1 ? ' · в уп. ' + i.pack : '') + '</div></div>' +
-      '<div class="ci-side"><div class="ci-sum">' + money(i.price * q) + '</div>' +
+      '<div class="u">' + kzt(i.price) + ' (' + money(i.price) + ') × ' + q + ' шт' + (i.pack > 1 ? ' · в уп. ' + i.pack : '') + '</div></div>' +
+      '<div class="ci-side"><div class="ci-sum">' + kzt(i.price * q) + '<small>(' + money(i.price * q) + ')</small></div>' +
       '<div class="ci-qty" style="display:none">' + q + ' шт</div>' +
       '<div class="stepper"><button type="button" data-act="dec" data-id="' + i.id + '" aria-label="Меньше">−</button>' +
       '<input type="number" inputmode="numeric" min="0" value="' + q + '" data-act="set" data-id="' + i.id + '" aria-label="Количество">' +
@@ -287,26 +291,24 @@ function renderSummary() {
   var t = cartTotals();
   $('#sPos').textContent = t.pos; $('#sPcs').textContent = t.pcs;
   $('#sPacks').textContent = (Math.round(t.packs * 10) / 10).toString().replace('.', ',');
-  $('#sTotal').textContent = money(t.sum);
-  var rate = parseFloat(settings.rate);
-  $('#kztRow').hidden = !(rate > 0);
-  if (rate > 0) $('#sKzt').textContent = int(Math.round(t.sum * rate)) + ' ₸';
+  $('#sTotal').innerHTML = kzt(t.sum) + '<small>(' + money(t.sum) + ')</small>';
+  $('#kztRow').hidden = true;
   var bud = parseFloat(settings.budget);
   var box = $('#budgetBox'); box.hidden = !(bud > 0);
   if (bud > 0) {
-    var pct = Math.min(100, t.sum / bud * 100), over = t.sum > bud;
+    var sumK = t.sum * rate(), pct = Math.min(100, sumK / bud * 100), over = sumK > bud;
     $('#budgetBar').style.width = pct + '%'; $('#budgetBar').classList.toggle('over', over);
     var tx = $('#budgetText'); tx.classList.toggle('over', over);
-    tx.textContent = over ? 'Выше бюджета на ' + money(t.sum - bud) : 'Осталось ' + money(bud - t.sum) + ' из ' + money(bud);
+    tx.textContent = over ? 'Выше бюджета на ' + kzt((sumK - bud) / rate()) : 'Осталось ' + kzt((bud - sumK) / rate()) + ' из ' + int(bud) + ' ₸';
   }
 }
 function cartText() {
   var t = cartTotals(), n = 0, lines = [];
   Object.keys(cart).forEach(function (k) {
     var i = byKey[k]; if (!i) return; n++;
-    lines.push(n + '. ' + i.art + ' — ' + i.title + (i.color ? ' (' + i.color.toLowerCase() + ')' : '') + ' — ' + cart[k] + ' шт × ' + money(i.price) + ' = ' + money(i.price * cart[k]));
+    lines.push(n + '. ' + i.art + ' — ' + i.title + (i.color ? ' (' + i.color.toLowerCase() + ')' : '') + ' — ' + cart[k] + ' шт × ' + kzt(i.price) + ' = ' + kzt(i.price * cart[k]) + ' (' + money(i.price * cart[k]) + ')');
   });
-  return 'Заказ · Тригор Сантех (прайс от ' + META.date + ')\n\n' + lines.join('\n') + '\n\nИтого: ' + t.pcs + ' шт, ' + money(t.sum);
+  return 'Заказ · Тригор Сантех (прайс от ' + META.date + ')\n\n' + lines.join('\n') + '\n\nИтого: ' + t.pcs + ' шт, ' + kzt(t.sum) + ' (' + money(t.sum) + ', курс ' + rate() + ' ₸/$)';
 }
 function copyText(s, msg) {
   function fb() {
@@ -317,12 +319,12 @@ function copyText(s, msg) {
   if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(s).then(function () { toast(msg || 'Скопировано'); }, fb); else fb();
 }
 function downloadCsv() {
-  var rows = [['№', 'Артикул', 'Название', 'Цвет', 'Материал', 'Цена $', 'Кол-во', 'Сумма $', 'В уп.']];
+  var rows = [['№', 'Артикул', 'Название', 'Цвет', 'Материал', 'Цена ₸', 'Кол-во', 'Сумма ₸', 'Цена $', 'Сумма $', 'В уп.']];
   Object.keys(cart).forEach(function (k) {
     var i = byKey[k]; if (!i) return;
-    rows.push([i.id, i.art, i.title, i.color, i.mat, String(i.price).replace('.', ','), cart[k], String(Math.round(i.price * cart[k] * 100) / 100).replace('.', ','), i.pack]);
+    rows.push([i.id, i.art, i.title, i.color, i.mat, Math.round(i.price * rate()), cart[k], Math.round(i.price * cart[k] * rate()), String(i.price).replace('.', ','), String(Math.round(i.price * cart[k] * 100) / 100).replace('.', ','), i.pack]);
   });
-  var t = cartTotals(); rows.push(['', '', '', '', '', '', t.pcs, String(Math.round(t.sum * 100) / 100).replace('.', ','), '']);
+  var t = cartTotals(); rows.push(['', '', '', '', '', '', t.pcs, Math.round(t.sum * rate()), '', String(Math.round(t.sum * 100) / 100).replace('.', ','), 'курс ' + rate()]);
   var csv = '﻿' + rows.map(function (r) { return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
   var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = 'trigor-zakaz.csv'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -344,7 +346,7 @@ function openModal(id) {
   if (lines.length > 1 && nz(lines[0]) === nz(i.title)) lines.shift();
   else if (lines.length && nz(i.title).indexOf(nz(lines[0])) === 0 && nz(lines[0]).length > 8) lines.shift();
   $('#mLines').innerHTML = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
-  $('#mPrice').innerHTML = i.price == null ? '<span style="font-size:20px;color:var(--muted)">Цена по запросу</span>' : money(i.price) + '<small>за шт · в упаковке ' + i.pack + ' шт</small>';
+  $('#mPrice').innerHTML = i.price == null ? '<span style="font-size:20px;color:var(--muted)">Цена по запросу</span>' : kzt(i.price) + '<small>(' + money(i.price) + ') · за шт · в упаковке ' + i.pack + ' шт</small>';
   renderModalBuy();
   var a = $('#mLink'); a.hidden = !i.link; if (i.link) a.href = i.link;
   $('#modal').hidden = false; document.body.style.overflow = 'hidden';
@@ -450,8 +452,19 @@ $('#cShare').addEventListener('click', function () {
   var txt = cartText();
   if (navigator.share) navigator.share({ title: 'Заказ · Тригор Сантех', text: txt }).catch(function () {}); else copyText(txt, 'Список скопирован — вставьте в WhatsApp или почту');
 });
-$('#rate').value = settings.rate; $('#budget').value = settings.budget;
-$('#rate').addEventListener('input', function (e) { settings.rate = e.target.value; store.set('settings', settings); renderSummary(); });
+function showRate() { $('#rateBtn').textContent = rate().toString().replace('.', ',') + ' ₸'; $('#rate').value = rate(); }
+function setRate(v) {
+  settings.rate = String(v); store.set('settings', settings); showRate();
+  renderCartBadges(); renderTabs(); refreshAll(); if (S.tab === 'cart') renderCart(); if (!$('#modal').hidden && modalId != null) openModal(modalId);
+}
+$('#rateBtn').addEventListener('click', function () {
+  var v = prompt('Курс: сколько тенге за 1 доллар?', rate());
+  if (v == null) return; v = parseFloat(String(v).replace(',', '.'));
+  if (v > 0) setRate(v);
+});
+showRate();
+$('#budget').value = settings.budget;
+$('#rate').addEventListener('change', function (e) { var v = parseFloat(String(e.target.value).replace(',', '.')); if (v > 0) setRate(v); else showRate(); });
 $('#budget').addEventListener('input', function (e) { settings.budget = e.target.value; store.set('settings', settings); renderSummary(); });
 window.addEventListener('hashchange', function () { var t = tabFromHash(); if (t !== S.tab) setTab(t, true); });
 

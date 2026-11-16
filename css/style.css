@@ -254,3 +254,8 @@ select:focus,input:focus{border-color:var(--accent)}
   .ci-side .ci-qty{display:block!important}
   .summary{position:static;box-shadow:none}
 }
+
+/* тенге — основная валюта, доллар мелко в скобках */
+.rate-btn{background:none;border:0;border-bottom:1px dashed #b3ada2;color:#e7dcc7;font:inherit;font-weight:700;padding:0 1px;cursor:pointer}
+.ci-sum small,.total b small{display:block;font-size:12px;font-weight:600;color:var(--muted);text-align:right}
+.total b small{font-size:14px}

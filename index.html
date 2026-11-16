@@ -22,7 +22,7 @@
   <div class="top-in">
     <div class="brand">
       <div class="logo">TRI<span>GOR</span></div>
-      <div class="brand-sub">Сантех · прайс от <b id="priceDate">—</b></div>
+      <div class="brand-sub">прайс от <b id="priceDate">—</b> · курс <button type="button" id="rateBtn" class="rate-btn" title="Изменить курс">450 ₸</button></div>
     </div>
     <label class="search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
@@ -31,7 +31,7 @@
     </label>
     <button id="cartTop" class="cart-top" type="button" aria-label="Открыть корзину">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.2a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="20" r="1.2"/><circle cx="17" cy="20" r="1.2"/></svg>
-      <span class="ct-sum" id="cartTopSum">$0,00</span>
+      <span class="ct-sum" id="cartTopSum">0 ₸</span>
       <span class="badge" id="cartTopCount" hidden>0</span>
     </button>
   </div>
@@ -67,11 +67,11 @@
       <div class="f-group" id="fMat"><h4>Материал</h4><div class="chips"></div></div>
       <div class="f-group" id="fKit"><h4>Тип набора</h4><div class="chips"></div></div>
       <div class="f-group" id="fPrice">
-        <h4>Цена, $ за штуку</h4>
+        <h4>Цена, ₸ за штуку</h4>
         <div class="price-row">
-          <input id="pMin" type="number" inputmode="decimal" min="0" step="0.5" placeholder="от">
+          <input id="pMin" type="number" inputmode="decimal" min="0" step="100" placeholder="от">
           <span>—</span>
-          <input id="pMax" type="number" inputmode="decimal" min="0" step="0.5" placeholder="до">
+          <input id="pMax" type="number" inputmode="decimal" min="0" step="100" placeholder="до">
         </div>
         <div class="chips presets" id="pPresets"></div>
       </div>
@@ -119,11 +119,11 @@
           <div><dt>Штук</dt><dd id="sPcs">0</dd></div>
           <div><dt>Упаковок (с округлением вверх)</dt><dd id="sPacks">0</dd></div>
         </dl>
-        <div class="total"><span>Сумма</span><b id="sTotal">$0,00</b></div>
+        <div class="total"><span>Сумма</span><b id="sTotal">0 ₸</b></div>
         <div class="kzt" id="kztRow" hidden><span>В тенге</span><b id="sKzt">0 ₸</b></div>
         <div class="tools">
-          <label>Курс, ₸ за $ <input id="rate" type="number" inputmode="decimal" min="0" step="0.1" placeholder="например 520"></label>
-          <label>Бюджет, $ <input id="budget" type="number" inputmode="decimal" min="0" step="1" placeholder="сколько готов потратить"></label>
+          <label>Курс, ₸ за $ <input id="rate" type="number" inputmode="decimal" min="0" step="0.1"></label>
+          <label>Бюджет, ₸ <input id="budget" type="number" inputmode="decimal" min="0" step="1" placeholder="сколько готов потратить"></label>
         </div>
         <div class="budget" id="budgetBox" hidden>
           <div class="bar"><i id="budgetBar"></i></div>
@@ -138,7 +138,7 @@
 <!-- Нижняя панель корзины на телефоне -->
 <button id="cartBar" class="cart-bar" type="button" hidden>
   <span><b id="cbCount">0</b> шт · <span id="cbPos">0</span> поз.</span>
-  <span class="cb-sum" id="cbSum">$0,00</span>
+  <span class="cb-sum" id="cbSum">0 ₸</span>
   <span class="cb-go">Корзина →</span>
 </button>
 
