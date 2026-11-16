@@ -259,3 +259,15 @@ select:focus,input:focus{border-color:var(--accent)}
 .rate-btn{background:none;border:0;border-bottom:1px dashed #b3ada2;color:#e7dcc7;font:inherit;font-weight:700;padding:0 1px;cursor:pointer}
 .ci-sum small,.total b small{display:block;font-size:12px;font-weight:600;color:var(--muted);text-align:right}
 .total b small{font-size:14px}
+
+/* переключатель поставщика: Тригор / Дионис */
+.sup{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:1400px;margin:0 auto;padding:2px 16px 10px}
+.sup-btn{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid #4a4743;background:#34322f;color:#cfc8ba;border-radius:14px;padding:9px 10px;font:inherit;cursor:pointer;transition:.15s}
+.sup-btn b{font-size:16px;font-weight:800;letter-spacing:.04em}
+.sup-btn span{font-size:11.5px;color:#9b958a;font-weight:600}
+.sup-btn:hover{background:#3d3a37}
+.sup-btn.on{background:#f4efe6;color:#2b2a28;border-color:#f4efe6}
+.sup-btn.on span{color:#8a7556}
+.suptag{font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:6px;background:#2b2a28;color:#e7dcc7}
+.suptag.dionis{background:#2f5d62;color:#e4f2f1}
+@media (max-width:720px){.sup{padding:0 12px 8px}.sup-btn{flex-direction:row;justify-content:center;align-items:baseline;gap:8px;padding:7px 8px}.sup-btn span{font-size:11px}}

@@ -1,6 +1,13 @@
 (function () {
 'use strict';
-var DATA = window.CATALOG, ITEMS = DATA.items, META = DATA.meta;
+var SUPS = [
+  { id: 'trigor', name: 'Тригор', logo: ['TRI', 'GOR'], data: window.CATALOG },
+  { id: 'dionis', name: 'Дионис', logo: ['DIO', 'NIS'], data: window.CATALOG_DIONIS }
+].filter(function (x) { return x.data; });
+var SUP = {};
+SUPS.forEach(function (x) { SUP[x.id] = x; x.data.items.forEach(function (i) { i.sup = x.id; }); });
+var ALL = [].concat.apply([], SUPS.map(function (x) { return x.data.items; }));   // оба прайса: для корзины и поиска по ключу
+var ITEMS = [], META = {};                                                          // текущий прайс (выбран переключателем)
 var $ = function (s, r) { return (r || document).querySelector(s); };
 var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
 var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
@@ -18,14 +25,14 @@ var store = {
 };
 
 var byId = {}, byKey = {};
-ITEMS.forEach(function (i) { byId[i.id] = i; byKey[i.key] = i; });
+ALL.forEach(function (i) { byId[i.id] = i; byKey[i.key] = i; });
 
 /* ---------- справочники ---------- */
 var COLOR_HEX = { 'Хром': 'linear-gradient(135deg,#f3f5f7,#aeb6bf)', 'Чёрный': '#1c1c1e', 'Золото': 'linear-gradient(135deg,#e6c872,#b8902f)',
   'Графит': '#5a5f66', 'Сатин': 'linear-gradient(135deg,#d8d2c4,#a79f8d)', 'Белый': '#fbfbfa', 'Серый': '#9ca1a8',
   'Бронза': 'linear-gradient(135deg,#a77649,#6e4528)', 'Другой': 'conic-gradient(#d9b38c,#9db8a0,#9aa7c8,#d9b38c)' };
 var COLOR_ORDER = ['Хром', 'Чёрный', 'Золото', 'Графит', 'Серый', 'Белый', 'Сатин', 'Бронза', 'Другой'];
-var MAT_ORDER = ['Латунь', 'Цинк', 'Нержавейка', 'Пластик', 'Силикон'];
+var MAT_ORDER = ['Латунь', 'Цинк', 'Нержавейка', 'Пластик', 'Силикон', 'Не указан'];
 var PRESETS = [{ l: 'до 5 000 ₸', a: 0, b: 5000 }, { l: '5–10 тыс', a: 5000, b: 10000 }, { l: '10–20 тыс', a: 10000, b: 20000 }, { l: 'от 20 тыс', a: 20000, b: null }];  // в тенге
 var SYN = { 'битые': 'биде', 'бидэ': 'биде', 'бидет': 'биде', 'биди': 'биде', 'душ': 'душ', 'лейки': 'лейк' };
 var ICON_IMG = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></svg>';
@@ -33,7 +40,7 @@ var NOIMG = '<div class="noimg">' + ICON_IMG + '<span>фото нет в пра�
 
 /* ---------- состояние ---------- */
 var S = {
-  tab: 'all', q: '', color: {}, mat: {}, kit: {}, extra: {}, pmin: null, pmax: null,
+  sup: store.get('sup', 'trigor'), tab: 'all', q: '', color: {}, mat: {}, kit: {}, extra: {}, pmin: null, pmax: null,
   sort: store.get('sort', 'pdf'), view: store.get('view', 'grid')
 };
 var cart = store.get('cart', {});   // key -> qty
@@ -51,7 +58,7 @@ function nz(s) {
 }
 var LAT = { 'а': 'a', 'в': 'b', 'с': 'c', 'е': 'e', 'н': 'h', 'к': 'k', 'м': 'm', 'о': 'o', 'р': 'p', 'т': 't', 'х': 'x', 'у': 'y' };
 function latin(s) { return s.toLowerCase().replace(/[-_\s.]/g, '').replace(/[а-я]/g, function (c) { return LAT[c] || c; }); }
-ITEMS.forEach(function (i) {
+ALL.forEach(function (i) {
   var syn = i.cat === 'Биде' ? ' бидэ битые гигиенический' : '';
   // основной поиск — без строки «В комплекте…» (иначе «лейка» находит все душевые стойки, у которых она в комплекте)
   var core = i.desc.replace(/в\s*комплекте.*$/i, '');
@@ -181,6 +188,8 @@ function specChips(i) {
   if (i.cart) h += '<span class="spec">картридж Ø' + esc(i.cart.replace(' мм', '')) + '</span>';
   return h;
 }
+function packWord(i) { return SUP[i.sup].data.meta.packWord || 'в уп.'; }
+function packNoun(i) { return SUP[i.sup].data.meta.packNoun || 'упаковка'; }
 function buyHTML(i, big) {
   if (i.price == null) return '<div class="buy"><button class="add" disabled>Цена по запросу</button></div>';
   var q = cart[i.key] || 0;
@@ -196,7 +205,7 @@ function buyHTML(i, big) {
       '<button type="button" data-act="pinc" data-id="' + i.id + '" aria-label="Больше">+</button></div>' +
       '<button type="button" class="add" data-act="add" data-id="' + i.id + '">В корзину</button></div>';
   }
-  if (i.pack > 1) h += '<button type="button" class="packbtn" data-act="pack" data-id="' + i.id + '">+ упаковка (' + i.pack + ' шт)</button>';
+  if (i.pack > 1) h += '<button type="button" class="packbtn" data-act="pack" data-id="' + i.id + '">+ ' + packNoun(i) + ' (' + i.pack + ' шт)</button>';
   return h;
 }
 function imgHTML(i) {
@@ -204,11 +213,11 @@ function imgHTML(i) {
 }
 function cardHTML(i) {
   var inc = cart[i.key] ? ' incart' : '';
-  var priceH = i.price == null ? '<span class="ask">цена по запросу</span>' : '<b>' + kzt(i.price) + '</b><small>(' + money(i.price) + ') · за шт · в уп. ' + i.pack + '</small>';
+  var priceH = i.price == null ? '<span class="ask">цена по запросу</span>' : '<b>' + kzt(i.price) + '</b><small>(' + money(i.price) + ') · за шт · ' + packWord(i) + ' ' + i.pack + '</small>';
   return '<article class="card' + inc + '" data-id="' + i.id + '">' +
     '<div class="c-img" data-act="open" data-id="' + i.id + '">' + imgHTML(i) + '<span class="tag">' + esc(i.art) + '</span>' + (i.kit ? '<span class="tag kit">' + esc(i.kit) + '</span>' : '') + '</div>' +
     '<div class="c-body"><div class="c-main">' +
-    '<div class="c-art">№ ' + i.id + '</div>' +
+    '<div class="c-art">№ ' + (i.no || i.id) + '</div>' +
     '<div class="c-title" data-act="open" data-id="' + i.id + '">' + esc(i.title) + '</div>' +
     '<div class="specs">' + specChips(i) + '</div></div>' +
     '<div class="c-foot"><div class="row2"><div class="price">' + priceH + '</div>' +
@@ -275,9 +284,9 @@ function renderCart() {
     var i = byKey[k], q = cart[k];
     return '<div class="ci" data-id="' + i.id + '">' +
       '<div class="ci-img" data-act="open" data-id="' + i.id + '">' + (i.img ? '<img src="' + esc(i.img) + '" alt="">' : NOIMG) + '</div>' +
-      '<div class="ci-main"><div class="c-art">' + esc(i.art) + (i.color ? ' · ' + esc(i.color) : '') + '</div>' +
+      '<div class="ci-main"><div class="c-art">' + (SUPS.length > 1 ? '<b class="suptag ' + i.sup + '">' + SUP[i.sup].name + '</b> ' : '') + esc(i.art) + (i.color ? ' · ' + esc(i.color) : '') + '</div>' +
       '<div class="t">' + esc(i.title) + '</div>' +
-      '<div class="u">' + kzt(i.price) + ' (' + money(i.price) + ') × ' + q + ' шт' + (i.pack > 1 ? ' · в уп. ' + i.pack : '') + '</div></div>' +
+      '<div class="u">' + kzt(i.price) + ' (' + money(i.price) + ') × ' + q + ' шт' + (i.pack > 1 ? ' · ' + packWord(i) + ' ' + i.pack : '') + '</div></div>' +
       '<div class="ci-side"><div class="ci-sum">' + kzt(i.price * q) + '<small>(' + money(i.price * q) + ')</small></div>' +
       '<div class="ci-qty" style="display:none">' + q + ' шт</div>' +
       '<div class="stepper"><button type="button" data-act="dec" data-id="' + i.id + '" aria-label="Меньше">−</button>' +
@@ -303,12 +312,17 @@ function renderSummary() {
   }
 }
 function cartText() {
-  var t = cartTotals(), n = 0, lines = [];
-  Object.keys(cart).forEach(function (k) {
-    var i = byKey[k]; if (!i) return; n++;
-    lines.push(n + '. ' + i.art + ' — ' + i.title + (i.color ? ' (' + i.color.toLowerCase() + ')' : '') + ' — ' + cart[k] + ' шт × ' + kzt(i.price) + ' = ' + kzt(i.price * cart[k]) + ' (' + money(i.price * cart[k]) + ')');
+  var t = cartTotals(), out = [];
+  SUPS.forEach(function (sp) {
+    var n = 0, lines = [];
+    Object.keys(cart).forEach(function (k) {
+      var i = byKey[k]; if (!i || i.sup !== sp.id) return; n++;
+      lines.push(n + '. ' + i.art + ' — ' + i.title + (i.color ? ' (' + i.color.toLowerCase() + ')' : '') + ' — ' + cart[k] + ' шт × ' + kzt(i.price) + ' = ' + kzt(i.price * cart[k]) + ' (' + money(i.price * cart[k]) + ')');
+    });
+    if (n) out.push((SUPS.length > 1 ? sp.name.toUpperCase() + '\n' : '') + lines.join('\n'));
   });
-  return 'Заказ · Тригор Сантех (прайс от ' + META.date + ')\n\n' + lines.join('\n') + '\n\nИтого: ' + t.pcs + ' шт, ' + kzt(t.sum) + ' (' + money(t.sum) + ', курс ' + rate() + ' ₸/$)';
+  var dates = SUPS.map(function (x) { return x.data.meta.date; }).filter(function (v, ix, arr) { return arr.indexOf(v) === ix; }).join(', ');
+  return 'Заказ · Тригор Сантех (прайс от ' + dates + ')\n\n' + out.join('\n\n') + '\n\nИтого: ' + t.pcs + ' шт, ' + kzt(t.sum) + ' (' + money(t.sum) + ', курс ' + rate() + ' ₸/$)';
 }
 function copyText(s, msg) {
   function fb() {
@@ -319,12 +333,12 @@ function copyText(s, msg) {
   if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(s).then(function () { toast(msg || 'Скопировано'); }, fb); else fb();
 }
 function downloadCsv() {
-  var rows = [['№', 'Артикул', 'Название', 'Цвет', 'Материал', 'Цена ₸', 'Кол-во', 'Сумма ₸', 'Цена $', 'Сумма $', 'В уп.']];
+  var rows = [['Поставщик', '№', 'Артикул', 'Название', 'Цвет', 'Материал', 'Цена ₸', 'Кол-во', 'Сумма ₸', 'Цена $', 'Сумма $', 'В уп.']];
   Object.keys(cart).forEach(function (k) {
     var i = byKey[k]; if (!i) return;
-    rows.push([i.id, i.art, i.title, i.color, i.mat, Math.round(i.price * rate()), cart[k], Math.round(i.price * cart[k] * rate()), String(i.price).replace('.', ','), String(Math.round(i.price * cart[k] * 100) / 100).replace('.', ','), i.pack]);
+    rows.push([SUP[i.sup].name, i.no || i.id, i.art, i.title, i.color, i.mat, Math.round(i.price * rate()), cart[k], Math.round(i.price * cart[k] * rate()), String(i.price).replace('.', ','), String(Math.round(i.price * cart[k] * 100) / 100).replace('.', ','), i.pack]);
   });
-  var t = cartTotals(); rows.push(['', '', '', '', '', '', t.pcs, Math.round(t.sum * rate()), '', String(Math.round(t.sum * 100) / 100).replace('.', ','), 'курс ' + rate()]);
+  var t = cartTotals(); rows.push(['', '', '', '', '', '', '', t.pcs, Math.round(t.sum * rate()), '', String(Math.round(t.sum * 100) / 100).replace('.', ','), 'курс ' + rate()]);
   var csv = '﻿' + rows.map(function (r) { return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
   var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   a.download = 'trigor-zakaz.csv'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -339,14 +353,14 @@ function renderModalBuy() {
 function openModal(id) {
   var i = byId[id]; if (!i) return; modalId = id;
   $('#mImg').innerHTML = i.img ? '<img src="' + esc(i.img) + '" alt="' + esc(i.art) + '">' : NOIMG;
-  $('#mArt').textContent = i.art + ' · № ' + i.id + ' · ' + i.cat;
+  $('#mArt').textContent = SUP[i.sup].name + ' · ' + i.art + ' · № ' + (i.no || i.id) + ' · ' + i.cat;
   $('#mTitle').textContent = i.title;
   $('#mChips').innerHTML = specChips(i) + (i.kit ? '<span class="spec">' + esc(i.kit) + '</span>' : '');
   var lines = i.lines.slice();
   if (lines.length > 1 && nz(lines[0]) === nz(i.title)) lines.shift();
   else if (lines.length && nz(i.title).indexOf(nz(lines[0])) === 0 && nz(lines[0]).length > 8) lines.shift();
   $('#mLines').innerHTML = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
-  $('#mPrice').innerHTML = i.price == null ? '<span style="font-size:20px;color:var(--muted)">Цена по запросу</span>' : kzt(i.price) + '<small>(' + money(i.price) + ') · за шт · в упаковке ' + i.pack + ' шт</small>';
+  $('#mPrice').innerHTML = i.price == null ? '<span style="font-size:20px;color:var(--muted)">Цена по запросу</span>' : kzt(i.price) + '<small>(' + money(i.price) + ') · за шт · ' + (i.sup === 'dionis' ? 'в коробке ' : 'в упаковке ') + i.pack + ' шт</small>';
   renderModalBuy();
   var a = $('#mLink'); a.hidden = !i.link; if (i.link) a.href = i.link;
   $('#modal').hidden = false; document.body.style.overflow = 'hidden';
@@ -369,6 +383,23 @@ function setTab(tab, noHash) {
   renderCartBadges();
   window.scrollTo({ top: 0, behavior: 'auto' });
 }
+function setSupplier(id, keepTab) {
+  if (!SUP[id]) id = SUPS[0].id;
+  S.sup = id; store.set('sup', id);
+  ITEMS = SUP[id].data.items; META = SUP[id].data.meta;
+  var lg = SUP[id].logo; $('#logo').innerHTML = lg[0] + '<span>' + lg[1] + '</span>';
+  $('#priceDate').textContent = META.date || '—';
+  document.title = SUP[id].name + ' — каталог';
+  $$('#sup [data-sup]').forEach(function (b) {
+    var on = b.dataset.sup === id; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+  });
+  if (!keepTab) { S.color = {}; S.mat = {}; S.kit = {}; S.extra = {}; S.pmin = S.pmax = null; S.q = ''; $('#q').value = ''; $('#qClear').hidden = true; $('#pMin').value = ''; $('#pMax').value = ''; setTab('all'); }
+}
+function renderSupSwitch() {
+  $('#sup').innerHTML = SUPS.map(function (x) {
+    return '<button type="button" class="sup-btn ' + x.id + '" data-sup="' + x.id + '"><b>' + x.name + '</b><span>' + x.data.items.length + ' товаров</span></button>';
+  }).join('');
+}
 function tabFromHash() {
   var h = decodeURIComponent((location.hash || '').slice(1));
   if (h === 'cart' || META.cats.indexOf(h) >= 0) return h;
@@ -380,6 +411,7 @@ function resetFilters() { S.color = {}; S.mat = {}; S.kit = {}; S.extra = {}; S.
 /* ---------- события ---------- */
 document.addEventListener('click', function (e) {
   var t = e.target;
+  var sb = t.closest('[data-sup]'); if (sb) { setSupplier(sb.dataset.sup); return; }
   var tab = t.closest('[data-tab]'); if (tab) { setTab(tab.dataset.tab); return; }
   var f = t.closest('[data-f]');
   if (f) { var o = S[f.dataset.f], v = f.dataset.v; if (o[v]) delete o[v]; else o[v] = true; refreshAll(); return; }
@@ -469,7 +501,8 @@ $('#budget').addEventListener('input', function (e) { settings.budget = e.target
 window.addEventListener('hashchange', function () { var t = tabFromHash(); if (t !== S.tab) setTab(t, true); });
 
 /* ---------- старт ---------- */
-$('#priceDate').textContent = META.date || '—';
+renderSupSwitch();
+setSupplier(S.sup, true);
 $('#filters').hidden = window.matchMedia('(max-width:720px)').matches;
 $('#filtersBtn').setAttribute('aria-expanded', String(!$('#filters').hidden));
 $('#vGrid').classList.toggle('on', S.view === 'grid'); $('#vList').classList.toggle('on', S.view === 'list');
