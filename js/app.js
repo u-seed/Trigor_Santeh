@@ -129,7 +129,7 @@ function renderTabs() {
   META.cats.forEach(function (c) {
     h += '<button class="tab' + (S.tab === c ? ' on' : '') + '" data-tab="' + esc(c) + '">' + esc(c) + ' <span class="n">' + counts[c] + '</span></button>';
   });
-  h += '<button class="tab cart' + (S.tab === 'cart' ? ' on' : '') + '" data-tab="cart">🛒 Корзина <span class="n">' + (t.pos ? t.pcs + ' шт · ' + kzt(t.sum) : 'пусто') + '</span></button>';
+  h += '<button class="tab cart' + (S.tab === 'cart' ? ' on' : '') + '" data-tab="cart">🛒 Корзина' + (room ? ' 👥' : '') + ' <span class="n">' + (t.pos ? t.pcs + ' шт · ' + kzt(t.sum) : 'пусто') + '</span></button>';
   var el = $('#tabs'); var keep = el.scrollLeft; el.innerHTML = h; el.scrollLeft = keep;
   var on = $('.tab.on', el);
   if (on && !el._scrolled) { el._scrolled = true; on.scrollIntoView({ inline: 'center', block: 'nearest' }); }
@@ -254,7 +254,7 @@ function refreshCard(id) {
 }
 
 /* ---------- корзина ---------- */
-function saveCart() { store.set('cart', cart); }
+function saveCart() { store.set('cart', cart); if (typeof pushCart === 'function') pushCart(); }
 function setQty(id, q) {
   var i = byId[id]; if (!i || i.price == null) return;
   q = Math.max(0, Math.floor(+q || 0));
@@ -500,6 +500,112 @@ $('#rate').addEventListener('change', function (e) { var v = parseFloat(String(e
 $('#budget').addEventListener('input', function (e) { settings.budget = e.target.value; store.set('settings', settings); renderSummary(); });
 window.addEventListener('hashchange', function () { var t = tabFromHash(); if (t !== S.tab) setTab(t, true); });
 
+/* ---------- общая корзина: два телефона видят одну корзину (хранится в бесплатном JSON-хранилище jsonblob.com, ключ — длинный код) ---------- */
+var BLOB = 'https://jsonblob.com/api/jsonBlob';
+var room = store.get('room', null);
+var devId = store.get('devId', null) || (function () { var d = Math.random().toString(36).slice(2, 10); store.set('devId', d); return d; })();
+var sync = { rev: 0, dirty: false, pushT: null, timer: null, checked: 0, err: '' };
+function jb(method, id, body) {
+  return fetch(BLOB + (id ? '/' + id : ''), { method: method, cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+}
+function packCart(rev) { return { app: 'trigor-santeh', rev: rev, by: devId, cart: cart }; }
+function cleanRemote(c) { var o = {}; Object.keys(c || {}).forEach(function (k) { if (byKey[k] && c[k] > 0) o[k] = Math.round(c[k]); }); return o; }
+function applyRemote(data) {
+  cart = cleanRemote(data.cart); sync.rev = data.rev || 0; store.set('cart', cart);
+  afterCartChange(); refreshAll();
+}
+function pushCart() {
+  if (!room) return;
+  sync.dirty = true; clearTimeout(sync.pushT);
+  sync.pushT = setTimeout(doPush, 500);
+}
+function doPush() {
+  if (!room) return;
+  var rev = sync.rev + 1;
+  jb('PUT', room, packCart(rev)).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    sync.rev = rev; sync.dirty = false; sync.err = ''; sync.checked = Date.now(); renderShare();
+  }).catch(function () { sync.err = 'Нет связи — изменения отправятся, когда появится интернет'; renderShare(); sync.pushT = setTimeout(doPush, 8000); });
+}
+function poll() {
+  if (!room || document.hidden || sync.dirty) return;
+  jb('GET', room).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (d) {
+    sync.err = ''; sync.checked = Date.now();
+    if (sync.dirty) return;
+    var newer = d.rev > sync.rev || (d.rev === sync.rev && d.by !== devId && JSON.stringify(cleanRemote(d.cart)) !== JSON.stringify(cart));
+    if (newer) { applyRemote(d); toast('Корзина обновлена с другого телефона'); }
+    renderShare();
+  }).catch(function () { sync.err = 'Нет связи с общей корзиной'; renderShare(); });
+}
+function startSync() { clearInterval(sync.timer); if (room) { sync.timer = setInterval(poll, 5000); poll(); } }
+document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+window.addEventListener('online', poll);
+function roomLink() { return location.origin + location.pathname + '?room=' + room; }
+function createRoom() {
+  if (room) return;
+  toast('Создаю общую корзину…');
+  jb('POST', null, packCart(1)).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var loc = r.headers.get('Location') || r.headers.get('location') || '';
+    var id = loc.split('/').pop();
+    if (!/^[\w-]{8,}$/.test(id)) throw new Error('no id');
+    room = id; store.set('room', id); sync.rev = 1; sync.err = '';
+    renderTabs(); renderShare(); startSync();
+    shareLink();
+  }).catch(function () { toast('Не получилось создать общую корзину: нет связи с сервисом'); });
+}
+function joinRoom(raw) {
+  var m = String(raw || '').match(/room=([\w-]+)/), id = m ? m[1] : String(raw || '').trim();
+  if (!/^[\w-]{8,}$/.test(id)) { toast('Код не похож на правильный'); return; }
+  jb('GET', id).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (d) {
+    if (!d || d.app !== 'trigor-santeh') throw new Error('bad');
+    var remote = cleanRemote(d.cart);
+    if (Object.keys(cart).length && JSON.stringify(remote) !== JSON.stringify(cart) && !confirm('У вас в корзине уже есть товары. Заменить их общей корзиной?')) return;
+    room = id; store.set('room', id); applyRemote(d); renderTabs(); renderShare(); startSync(); toast('Подключено к общей корзине');
+  }).catch(function () { toast('Не удалось подключиться: проверьте код и интернет'); });
+}
+function leaveRoom() {
+  if (!confirm('Отключиться от общей корзины? Товары останутся у вас на телефоне, но обновляться перестанут.')) return;
+  clearInterval(sync.timer); clearTimeout(sync.pushT); room = null; store.set('room', null); sync.dirty = false; renderTabs(); renderShare();
+}
+function shareLink() {
+  var url = roomLink();
+  if (navigator.share) navigator.share({ title: 'Тригор Сантех — общая корзина', text: 'Общая корзина:', url: url }).catch(function () {});
+  else copyText(url, 'Ссылка скопирована — отправьте её второму телефону');
+}
+function renderShare() {
+  var el = $('#sharePanel'); if (!el) return;
+  if (!room) {
+    el.className = 'share';
+    el.innerHTML = '<div class="share-t"><b>👥 Общая корзина</b><span>Чтобы вы оба видели одну корзину на своих телефонах</span></div>' +
+      '<div class="share-b"><button class="btn" type="button" data-share="create">Создать общую корзину</button>' +
+      '<button class="btn ghost" type="button" data-share="join">У меня есть ссылка или код</button></div>';
+    return;
+  }
+  var t = sync.checked ? new Date(sync.checked).toLocaleTimeString('ru-RU') : '…';
+  el.className = 'share on' + (sync.err ? ' err' : '');
+  el.innerHTML = '<div class="share-t"><b>👥 Общая корзина подключена</b><span>' + (sync.err ? esc(sync.err) : 'Изменения видны на обоих телефонах · обновлено ' + t) + '</span></div>' +
+    '<div class="share-b"><button class="btn" type="button" data-share="link">Отправить ссылку</button>' +
+    '<button class="btn ghost" type="button" data-share="code">Скопировать код</button>' +
+    '<button class="btn link danger" type="button" data-share="leave">Отключить</button></div>';
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-share]'); if (!b) return;
+  var a = b.dataset.share;
+  if (a === 'create') createRoom();
+  else if (a === 'join') { var v = prompt('Вставьте ссылку или код общей корзины'); if (v) joinRoom(v); }
+  else if (a === 'link') shareLink();
+  else if (a === 'code') copyText(room, 'Код скопирован');
+  else if (a === 'leave') leaveRoom();
+});
+(function joinFromUrl() {
+  var m = location.search.match(/[?&]room=([\w-]+)/);
+  if (!m) return;
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+  if (m[1] !== room) setTimeout(function () { joinRoom(m[1]); }, 300);
+})();
+
 /* ---------- старт ---------- */
 renderSupSwitch();
 setSupplier(S.sup, true);
@@ -507,5 +613,6 @@ $('#filters').hidden = window.matchMedia('(max-width:720px)').matches;
 $('#filtersBtn').setAttribute('aria-expanded', String(!$('#filters').hidden));
 $('#vGrid').classList.toggle('on', S.view === 'grid'); $('#vList').classList.toggle('on', S.view === 'list');
 renderCartBadges();
+renderShare(); startSync();
 setTab(tabFromHash(), true);
 })();

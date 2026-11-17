@@ -1,5 +1,5 @@
 // Сервис-воркер: приложение открывается и без интернета. Код и данные — «сначала сеть», фото — «сначала кэш».
-const V = 'trigor-v3';
+const V = 'trigor-v4';
 const CORE = ['./', 'index.html', 'css/style.css', 'js/app.js', 'data.js', 'data-dionis.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== V).map(x => caches.delete(x)))).then(() => self.clients.claim())); });
