@@ -311,6 +311,19 @@ function renderSummary() {
     tx.textContent = over ? 'Выше бюджета на ' + kzt((sumK - bud) / rate()) : 'Осталось ' + kzt((bud - sumK) / rate()) + ' из ' + int(bud) + ' ₸';
   }
 }
+function cartCode() { try { return btoa(unescape(encodeURIComponent(JSON.stringify(cart)))); } catch (e) { return ''; } }
+function parseCartText(text) {
+  var out = {}, flat = String(text || '').replace(/\s+/g, ''), m = flat.match(/TS1:([A-Za-z0-9+\/=]+)/);
+  if (m) {                                                       // точный код корзины
+    try { var o = JSON.parse(decodeURIComponent(escape(atob(m[1])))); Object.keys(o).forEach(function (k) { if (byKey[k] && o[k] > 0) out[k] = Math.round(o[k]); }); } catch (e) {}
+    if (Object.keys(out).length) return out;
+  }
+  String(text || '').split(/\r?\n/).forEach(function (line) {   // запасной вариант: строки «1. АРТИКУЛ — … — 2 шт × …»
+    var r = line.match(/^\s*\d+\.\s*(\S+)\s+—.*—\s*(\d+)\s*шт\s*×/); if (!r) return;
+    var it = ALL.filter(function (i) { return i.art === r[1]; })[0]; if (it) out[it.key] = (out[it.key] || 0) + parseInt(r[2], 10);
+  });
+  return out;
+}
 function cartText() {
   var t = cartTotals(), out = [];
   SUPS.forEach(function (sp) {
@@ -322,7 +335,7 @@ function cartText() {
     if (n) out.push((SUPS.length > 1 ? sp.name.toUpperCase() + '\n' : '') + lines.join('\n'));
   });
   var dates = SUPS.map(function (x) { return x.data.meta.date; }).filter(function (v, ix, arr) { return arr.indexOf(v) === ix; }).join(', ');
-  return 'Заказ · Тригор Сантех (прайс от ' + dates + ')\n\n' + out.join('\n\n') + '\n\nИтого: ' + t.pcs + ' шт, ' + kzt(t.sum) + ' (' + money(t.sum) + ', курс ' + rate() + ' ₸/$)';
+  return 'Заказ · Тригор Сантех (прайс от ' + dates + ')\n\n' + out.join('\n\n') + '\n\nИтого: ' + t.pcs + ' шт, ' + kzt(t.sum) + ' (' + money(t.sum) + ', курс ' + rate() + ' ₸/$)' + '\n\n🔑 Код корзины (в приложении: Корзина → «Вставить список»):\nTS1:' + cartCode() + ':';
 }
 function copyText(s, msg) {
   function fb() {
@@ -500,6 +513,29 @@ $('#rate').addEventListener('change', function (e) { var v = parseFloat(String(e
 $('#budget').addEventListener('input', function (e) { settings.budget = e.target.value; store.set('settings', settings); renderSummary(); });
 window.addEventListener('hashchange', function () { var t = tabFromHash(); if (t !== S.tab) setTab(t, true); });
 
+/* ---------- вставить список (корзина, присланная с другого телефона) ---------- */
+function renderImport(open) {
+  var el = $('#importBox'); if (!el) return;
+  if (!open) { el.innerHTML = '<div class="share-t"><b>📥 Список от жены или другого телефона</b><span>Скопированный там список вставьте сюда — товары появятся в вашей корзине</span></div><div class="share-b"><button class="btn" type="button" data-imp="open">Вставить список</button></div>'; return; }
+  el.innerHTML = '<div class="share-t" style="flex:1 1 100%"><b>📥 Вставьте скопированный список</b><span>Весь текст целиком, как пришёл (вместе со строкой «Код корзины»)</span></div>' +
+    '<textarea id="impText" rows="5" placeholder="Нажмите сюда и вставьте текст…"></textarea>' +
+    '<div class="share-b"><button class="btn" type="button" data-imp="replace">Заменить мою корзину</button><button class="btn ghost" type="button" data-imp="add">Добавить к моей</button><button class="btn link" type="button" data-imp="close">Отмена</button></div><div id="impMsg" class="share-t" style="flex:1 1 100%"></div>';
+  setTimeout(function () { var t = $('#impText'); if (t) t.focus(); }, 50);
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-imp]'); if (!b) return;
+  var a = b.dataset.imp;
+  if (a === 'open') renderImport(true);
+  else if (a === 'close') renderImport(false);
+  else {
+    var got = parseCartText($('#impText').value), n = Object.keys(got).length;
+    if (!n) { $('#impMsg').innerHTML = '<span style="color:#b3402b">Не нашёл товаров в этом тексте. Вставьте список целиком, как его прислали.</span>'; return; }
+    if (a === 'replace') cart = got; else Object.keys(got).forEach(function (k) { cart[k] = (cart[k] || 0) + got[k]; });
+    saveCart(); afterCartChange(); refreshAll(); renderImport(false);
+    toast('Загружено позиций: ' + n);
+  }
+});
+
 /* ---------- старт ---------- */
 renderSupSwitch();
 setSupplier(S.sup, true);
@@ -507,5 +543,6 @@ $('#filters').hidden = window.matchMedia('(max-width:720px)').matches;
 $('#filtersBtn').setAttribute('aria-expanded', String(!$('#filters').hidden));
 $('#vGrid').classList.toggle('on', S.view === 'grid'); $('#vList').classList.toggle('on', S.view === 'list');
 renderCartBadges();
+renderImport(false);
 setTab(tabFromHash(), true);
 })();
